@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Nutrition Assistant</title>
+  <meta name="description" content="Nutrition information and budget-friendly food alternatives.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍎</text></svg>">
+
+  <!-- PyScript runtime: runs frontend.py and backend.py in the browser -->
+  <link rel="stylesheet" href="https://pyscript.net/releases/2024.11.1/core.css">
+  <script type="module" src="https://pyscript.net/releases/2024.11.1/core.js"></script>
+
+  <style>
+    :root {
+      --green: #1f5e20;
+      --green-soft: #e8f1e6;
+      --orange: #f77f00;
+      --ink: #262730;
+      --muted: #6b6f7b;
+      --line: #e3e5ea;
+      --field: #f0f2f6;
+      --bg: #ffffff;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --green: #7fc47f;
+        --green-soft: #1c2a1c;
+        --ink: #eceef2;
+        --muted: #a0a5b0;
+        --line: #343843;
+        --field: #262a33;
+        --bg: #14161b;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Source Sans Pro", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+      line-height: 1.5;
+    }
+    .hidden { display: none !important; }
+    main { max-width: 860px; margin: 0 auto; padding: 32px 16px 56px; }
+
+    header { position: relative; }
+    .dot {
+      position: absolute; top: 0; right: 0;
+      width: 44px; height: 44px; border-radius: 50%;
+      background: var(--orange);
+    }
+    h1 { margin: 0 56px 4px 0; font-size: clamp(2rem, 7vw, 3.1rem); line-height: 1.1; font-weight: 800; }
+    .caption { margin: 0 0 28px; color: var(--muted); }
+
+    label { display: block; margin-bottom: 6px; font-size: 0.95rem; }
+    select {
+      width: 100%; padding: 12px; font-size: 1rem;
+      color: var(--ink); background: var(--field);
+      border: 1px solid transparent; border-radius: 8px;
+    }
+    select:focus { outline: 2px solid var(--green); }
+    button {
+      margin-top: 18px; padding: 10px 22px; font-size: 1rem; cursor: pointer;
+      color: var(--ink); background: var(--bg);
+      border: 1px solid var(--line); border-radius: 8px;
+    }
+    button:hover { border-color: var(--green); color: var(--green); }
+    button:active { background: var(--green); color: #fff; }
+
+    #result { display: none; margin-top: 32px; }
+    #result.visible { display: block; }
+    h2 { margin: 28px 0 12px; font-size: 1.35rem; color: var(--green); }
+    h2 small { font-weight: 400; color: var(--muted); font-size: 0.85em; }
+
+    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .metric { padding: 14px; border: 1px solid var(--line); border-radius: 10px; }
+    .metric-label { display: block; font-size: 0.85rem; color: var(--muted); }
+    .metric-value { display: block; font-size: 1.5rem; font-weight: 700; }
+    .extra { margin: 14px 0 0; }
+
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+    th, td { padding: 10px 8px; text-align: right; }
+    td { white-space: nowrap; }
+    th:first-child, td:first-child { padding-left: 12px; }
+    th:last-child, td:last-child { padding-right: 12px; }
+    th:first-child, td:first-child { text-align: left; }
+    thead th { background: var(--green); color: #fff; font-weight: 600; }
+    tbody tr + tr td { border-top: 1px solid var(--line); }
+    td.name { font-weight: 600; }
+    td.save { color: var(--green); font-weight: 700; }
+
+    .notice { padding: 14px 16px; border-radius: 10px; background: var(--green-soft); border-left: 4px solid var(--green); }
+
+    #loading { text-align: center; padding: 80px 16px; color: var(--muted); }
+    .spinner {
+      width: 36px; height: 36px; margin: 0 auto 16px;
+      border: 4px solid var(--line); border-top-color: var(--orange);
+      border-radius: 50%; animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .flow { margin-top: 48px; padding: 20px; border-radius: 12px; background: var(--green); color: #fff; }
+    .flow h3 { margin: 0 0 10px; font-size: 1.05rem; }
+    .flow ol { margin: 0; padding-left: 20px; }
+    .flow li { margin: 2px 0; }
+
+    @media (max-width: 600px) {
+      .metrics { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="dot" aria-hidden="true"></div>
+      <h1>🍎 AI Nutrition Assistant</h1>
+      <p class="caption">Nutrition info + budget-friendly alternatives</p>
+    </header>
+
+    <div id="loading">
+      <div class="spinner"></div>
+      <div>Loading the AI model... this takes a few seconds on the first visit.</div>
+    </div>
+
+    <section id="app" class="hidden">
+      <label for="food-select">Select a food</label>
+      <select id="food-select"></select>
+      <button id="analyze-btn" type="button">Analyze</button>
+
+      <div id="result" aria-live="polite"></div>
+
+      <aside class="flow">
+        <h3>How it works</h3>
+        <ol>
+          <li>Food Input: you select a food</li>
+          <li>Dataset: nutrition data is loaded</li>
+          <li>Processing: Python cleans and scales the data</li>
+          <li>AI/ML: K-Nearest Neighbors finds similar foods</li>
+          <li>Result: calories, protein, carbs and fat</li>
+          <li>Budget Option: cheaper alternatives are suggested</li>
+          <li>Website: results and tips are displayed</li>
+        </ol>
+      </aside>
+    </section>
+  </main>
+
+  <!-- Frontend Python code (page logic). It imports backend.py -->
+  <script type="py" config='{"packages": ["pandas", "scikit-learn"], "files": {"./backend.py": "./backend.py"}}'>
+from html import escape
+
+from pyodide.ffi import create_proxy
+from pyscript import document
+
+import backend
+
+
+def metric_card(label: str, value: str) -> str:
+    return (
+        '<div class="metric">'
+        f'<span class="metric-label">{escape(label)}</span>'
+        f'<span class="metric-value">{escape(value)}</span>'
+        "</div>"
+    )
+
+
+def render_result(food: str) -> str:
+    """Website Output: nutrition result, budget alternatives and a tip."""
+    info = backend.get_nutrition(food)
+    alternatives = backend.get_alternatives(food)
+    tip = backend.get_tip(food)
+
+    html = f'<h2>Nutrition of {escape(info["food"])} <small>(per 100 g)</small></h2>'
+    html += '<div class="metrics">'
+    html += metric_card("Calories", f'{info["calories"]:.0f} kcal')
+    html += metric_card("Protein", f'{info["protein"]:.1f} g')
+    html += metric_card("Carbs", f'{info["carbs"]:.1f} g')
+    html += metric_card("Fat", f'{info["fat"]:.1f} g')
+    html += "</div>"
+    html += (
+        f'<p class="extra"><b>Fiber:</b> {info["fiber"]:.1f} g'
+        f' &nbsp;|&nbsp; <b>Approx. price:</b> Rs {info["price"]:.0f} per 100 g</p>'
+    )
+
+    html += "<h2>Budget-friendly alternatives</h2>"
+    if not alternatives:
+        html += (
+            f'<div class="notice good">{escape(food)} is already one of the '
+            "cheapest options with this nutrition.</div>"
+        )
+    else:
+        html += '<div class="table-wrap"><table><thead><tr>'
+        for head in ["Alternative", "Calories", "Protein (g)", "Carbs (g)",
+                     "Fat (g)", "Price (Rs/100g)", "Similarity %", "You save %"]:
+            html += f"<th>{head}</th>"
+        html += "</tr></thead><tbody>"
+        for alt in alternatives:
+            html += (
+                "<tr>"
+                f'<td class="name">{escape(alt["food"])}</td>'
+                f'<td>{alt["calories"]:.0f}</td>'
+                f'<td>{alt["protein"]:.1f}</td>'
+                f'<td>{alt["carbs"]:.1f}</td>'
+                f'<td>{alt["fat"]:.1f}</td>'
+                f'<td>{alt["price"]:.0f}</td>'
+                f'<td>{alt["similarity"]:.1f}</td>'
+                f'<td class="save">{alt["saving"]}%</td>'
+                "</tr>"
+            )
+        html += "</tbody></table></div>"
+
+    html += "<h2>Tip</h2>"
+    html += f'<div class="notice">{escape(tip)}</div>'
+    return html
+
+
+def on_analyze(event=None):
+    select = document.getElementById("food-select")
+    result = document.getElementById("result")
+    result.innerHTML = render_result(select.value)
+    result.classList.add("visible")
+    result.scrollIntoView()
+
+
+def start():
+    """Fill the dropdown, connect the button and hide the loading screen."""
+    select = document.getElementById("food-select")
+    options = ""
+    for name in backend.get_food_list():
+        options += f'<option value="{escape(name)}">{escape(name)}</option>'
+    select.innerHTML = options
+    select.value = "Almonds"
+
+    document.getElementById("analyze-btn").addEventListener("click", create_proxy(on_analyze))
+
+    document.getElementById("loading").classList.add("hidden")
+    document.getElementById("app").classList.remove("hidden")
+
+
+start()
+</script>
+</body>
+</html>
